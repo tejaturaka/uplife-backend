@@ -9,7 +9,6 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/users")
-//@CrossOrigin(origins = "*")
 @CrossOrigin(origins = "*")
 public class UserController {
 
@@ -19,6 +18,32 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> registerOrUpdate(@RequestBody User user) {
         try {
+            // REQUIREMENT: Sequential 10-digit ID for "user" role
+            if ("user".equalsIgnoreCase(user.getRole())) {
+                
+                // Only generate if it's a new registration (ID is null or empty)
+                if (user.getId() == null || user.getId().isEmpty()) {
+                    List<User> allUsers = userRepository.findAll();
+                    long maxNumericId = 0;
+
+                    for (User u : allUsers) {
+                        try {
+                            // Convert existing string IDs to long to find the max
+                            long currentId = Long.parseLong(u.getId());
+                            if (currentId > maxNumericId) {
+                                maxNumericId = currentId;
+                            }
+                        } catch (NumberFormatException e) {
+                            // Ignore non-numeric IDs like '123' or 'GOGONO...'
+                        }
+                    }
+                    
+                    // Increment and format to 10 digits (e.g., 0000000001)
+                    String nextSequentialId = String.format("%010d", maxNumericId + 1);
+                    user.setId(nextSequentialId);
+                }
+            }
+
             User saved = userRepository.save(user);
             return ResponseEntity.ok(saved);
         } catch (Exception e) {
