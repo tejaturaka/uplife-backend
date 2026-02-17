@@ -9,7 +9,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "https://uplife-frontend.vercel.app") // Backup annotation
 public class UserController {
 
     @Autowired
@@ -18,38 +18,33 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> registerOrUpdate(@RequestBody User user) {
         try {
-            // REQUIREMENT: Generate 10-digit ID if ID is missing
+            // REQUIREMENT: Generate 10-char Unique ID only for NEW users
+            // Format: State(2) + Dist(2) + Mandal(2) + Seq(4)
             if (user.getId() == null || user.getId().trim().isEmpty()) {
                 
-                // 1. Generate Prefix (2 chars from State, Dist, Mandal)
+                // 1. Get Abbreviations
                 String stateCode = getAbbreviation(user.getState());
                 String distCode = getAbbreviation(user.getDist());
                 String mandalCode = getAbbreviation(user.getMandal());
                 
-                // Example: Telangana, Hyderabad, Amberpet -> TEHYAM
+                // Example Prefix: TEHYAM
                 String idPrefix = (stateCode + distCode + mandalCode).toUpperCase();
                 
-                // 2. Find Max Sequence for this specific location prefix
+                // 2. Find Next Sequence
                 List<User> allUsers = userRepository.findAll();
                 int maxSequence = 0;
 
                 for (User u : allUsers) {
-                    if (u.getId() != null && u.getId().startsWith(idPrefix)) {
+                    if (u.getId() != null && u.getId().length() == 10 && u.getId().startsWith(idPrefix)) {
                         try {
-                            // Get last 4 characters
-                            String seqStr = u.getId().substring(6); 
+                            String seqStr = u.getId().substring(6); // Last 4 digits
                             int seq = Integer.parseInt(seqStr);
-                            if (seq > maxSequence) {
-                                maxSequence = seq;
-                            }
-                        } catch (Exception e) {
-                            // Ignore IDs that don't match format
-                        }
+                            if (seq > maxSequence) maxSequence = seq;
+                        } catch (Exception e) { /* Ignore non-numeric */ }
                     }
                 }
 
-                // 3. Generate ID: Prefix + 4-digit Sequence
-                // Example: TEHYAM0001
+                // 3. Generate ID (Prefix + 0001)
                 String nextId = idPrefix + String.format("%04d", maxSequence + 1);
                 user.setId(nextId);
             }
@@ -57,26 +52,15 @@ public class UserController {
             User saved = userRepository.save(user);
             return ResponseEntity.ok(saved);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
     }
 
-    // Helper to get first 2 letters safely
     private String getAbbreviation(String input) {
         if (input == null || input.trim().isEmpty()) return "XX";
-        input = input.trim().toUpperCase();
-        
-        // Handle "Andhra Pradesh" -> "AP"
-        String[] parts = input.split(" ");
-        if (parts.length > 1) {
-            return "" + parts[0].charAt(0) + parts[1].charAt(0);
-        }
-        
-        // Handle "Telangana" -> "TE"
-        if (input.length() >= 2) {
-            return input.substring(0, 2);
-        }
-        
+        input = input.trim().replaceAll("\\s+", "").toUpperCase();
+        if (input.length() >= 2) return input.substring(0, 2);
         return input + "X";
     }
 
