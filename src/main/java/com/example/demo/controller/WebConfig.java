@@ -1,4 +1,4 @@
-package com.example.demo;  // <--- CHANGED THIS LINE
+package com.example.demo.controller;  // <--- CHANGE THIS LINE TO MATCH THE FOLDER
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
