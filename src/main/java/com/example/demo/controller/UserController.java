@@ -18,15 +18,15 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> registerOrUpdate(@RequestBody User user) {
         try {
-            // Generate ID only if it's a NEW registration
+            // ONLY generate ID for new users (empty ID)
             if (user.getId() == null || user.getId().trim().isEmpty()) {
                 
-                String role = user.getRole();
+                String role = user.getRole(); // "agent" or "user"
                 List<User> allUsers = userRepository.findAll();
 
-                // ---------------------------------------------------------
-                // LOGIC 1: AGENTS -> Location Based ID (e.g., TEHYAM0001)
-                // ---------------------------------------------------------
+                // -----------------------------------------------------
+                // CASE 1: AGENT -> Generates Location ID (e.g., TEHYAM0001)
+                // -----------------------------------------------------
                 if ("agent".equalsIgnoreCase(role)) {
                     String stateCode = getAbbreviation(user.getState());
                     String distCode = getAbbreviation(user.getDist());
@@ -44,27 +44,29 @@ public class UserController {
                             } catch (Exception e) {}
                         }
                     }
+                    // Format: PREFIX + 4 digits (e.g., DADADA0001)
                     user.setId(idPrefix + String.format("%04d", maxSequence + 1));
                 } 
                 
-                // ---------------------------------------------------------
-                // LOGIC 2: CUSTOMERS -> Pure 10-Digit Sequence (e.g., 0000000001)
-                // ---------------------------------------------------------
+                // -----------------------------------------------------
+                // CASE 2: CUSTOMER -> Generates 10-Digit Number (e.g., 0000000001)
+                // -----------------------------------------------------
                 else {
                     long maxNumericId = 0;
                     for (User u : allUsers) {
                         if (u.getId() != null) {
                             try {
-                                // Only count IDs that are purely numbers
+                                // Try to read ID as a pure number
                                 long currentId = Long.parseLong(u.getId());
                                 if (currentId > maxNumericId) {
                                     maxNumericId = currentId;
                                 }
                             } catch (NumberFormatException e) {
-                                // Ignore Agent IDs (they have letters)
+                                // Ignore IDs containing letters (Agent IDs)
                             }
                         }
                     }
+                    // Format: 10 digits (e.g., 0000000001)
                     user.setId(String.format("%010d", maxNumericId + 1));
                 }
             }
@@ -77,7 +79,6 @@ public class UserController {
         }
     }
 
-    // Helper for Agent Abbreviations
     private String getAbbreviation(String input) {
         if (input == null || input.trim().isEmpty()) return "XX";
         input = input.trim().toUpperCase();
