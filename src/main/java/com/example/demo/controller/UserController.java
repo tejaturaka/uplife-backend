@@ -18,30 +18,40 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> registerOrUpdate(@RequestBody User user) {
         try {
-            // REQUIREMENT: Sequential 10-digit ID for "user" role
-            if ("user".equalsIgnoreCase(user.getRole())) {
+            // REQUIREMENT: Generate 10-digit ID if ID is missing
+            if (user.getId() == null || user.getId().trim().isEmpty()) {
                 
-                // Only generate if it's a new registration (ID is null or empty)
-                if (user.getId() == null || user.getId().isEmpty()) {
-                    List<User> allUsers = userRepository.findAll();
-                    long maxNumericId = 0;
+                // 1. Generate Prefix (2 chars from State, Dist, Mandal)
+                String stateCode = getAbbreviation(user.getState());
+                String distCode = getAbbreviation(user.getDist());
+                String mandalCode = getAbbreviation(user.getMandal());
+                
+                // Example: Telangana, Hyderabad, Amberpet -> TEHYAM
+                String idPrefix = (stateCode + distCode + mandalCode).toUpperCase();
+                
+                // 2. Find Max Sequence for this specific location prefix
+                List<User> allUsers = userRepository.findAll();
+                int maxSequence = 0;
 
-                    for (User u : allUsers) {
+                for (User u : allUsers) {
+                    if (u.getId() != null && u.getId().startsWith(idPrefix)) {
                         try {
-                            // Convert existing string IDs to long to find the max
-                            long currentId = Long.parseLong(u.getId());
-                            if (currentId > maxNumericId) {
-                                maxNumericId = currentId;
+                            // Get last 4 characters
+                            String seqStr = u.getId().substring(6); 
+                            int seq = Integer.parseInt(seqStr);
+                            if (seq > maxSequence) {
+                                maxSequence = seq;
                             }
-                        } catch (NumberFormatException e) {
-                            // Ignore non-numeric IDs like '123' or 'GOGONO...'
+                        } catch (Exception e) {
+                            // Ignore IDs that don't match format
                         }
                     }
-                    
-                    // Increment and format to 10 digits (e.g., 0000000001)
-                    String nextSequentialId = String.format("%010d", maxNumericId + 1);
-                    user.setId(nextSequentialId);
                 }
+
+                // 3. Generate ID: Prefix + 4-digit Sequence
+                // Example: TEHYAM0001
+                String nextId = idPrefix + String.format("%04d", maxSequence + 1);
+                user.setId(nextId);
             }
 
             User saved = userRepository.save(user);
@@ -49,6 +59,25 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
+    }
+
+    // Helper to get first 2 letters safely
+    private String getAbbreviation(String input) {
+        if (input == null || input.trim().isEmpty()) return "XX";
+        input = input.trim().toUpperCase();
+        
+        // Handle "Andhra Pradesh" -> "AP"
+        String[] parts = input.split(" ");
+        if (parts.length > 1) {
+            return "" + parts[0].charAt(0) + parts[1].charAt(0);
+        }
+        
+        // Handle "Telangana" -> "TE"
+        if (input.length() >= 2) {
+            return input.substring(0, 2);
+        }
+        
+        return input + "X";
     }
 
     @PostMapping("/login")
